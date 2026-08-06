@@ -480,6 +480,8 @@ int main(int argc, char *argv[]) {
   SDL_Renderer *renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
   if (!renderer) { printf("SDL_CreateRenderer Error: %s\n", SDL_GetError()); return 1; }
 
+  SDL_GetRendererOutputSize(renderer, &width, &height);
+
   int running = 1;
   SDL_Event e;
 

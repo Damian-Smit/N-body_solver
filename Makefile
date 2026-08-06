@@ -1,11 +1,11 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -O2 -std=c11 $(shell sdl2-config --cflags)
+CFLAGS  = -Wall -Wextra -O2 -std=c11 -MMD -MP $(shell sdl2-config --cflags)
 LDFLAGS = $(shell sdl2-config --libs) -lm
 TARGET  = gravitySimulator
  
 SRC     = src/gravitySimulator.c src/vec.c src/linearBH.c
 OBJ     = $(SRC:.c=.o)
-DEPS    = $(wildcard src/*.h)
+DEPS    = $(OBJ:.o=.d)
  
 FILE ?= setups/solar_system.txt
 ##FILE = setups/base.txt
@@ -19,11 +19,13 @@ $(TARGET): $(OBJ)
  
 %.o: %.c $(DEPS)
 	$(CC) $(CFLAGS) -c $< -o $@
- 
+
+-include $(DEP)
+
 run: $(TARGET)
 	./$(TARGET) $(FILE)
  
 clean:
-	rm -f $(TARGET) $(OBJ)
+	rm -f $(TARGET) $(OBJ) $(DEP)
  
 .PHONY: all run clean
