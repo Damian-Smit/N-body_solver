@@ -1,15 +1,17 @@
+#include <SDL2/SDL_error.h>
+#include <SDL2/SDL_video.h>
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
 #include <SDL2/SDL.h>
+#include <string.h>
+#include <wchar.h>
 
-#include "vec.h"
 #include "bodyStore.h"
-//#include "octree.h"
 #include "linearBH.h"
 
 #define M_PI 3.14159265358979323846
-#define G 4 * M_PI * M_PI//AU version of constant
+#define G (4 * M_PI * M_PI)//AU version of constant
 #define EPS 1e-3
 #define ASTEROID_TRAILS_ENABLED 0
 #define THETA 0.5 /*barnes hut decision threshold (between 0 and 1)*/
@@ -25,10 +27,10 @@ void count_bodies(char *inputFile, int *n, int *n_stars);
 BodyStore* init_bodystore(int n);
 StellarStore* init_stellarstore(int n_stars);
 void init_body(BodyStore *bs, float x, float y, float z, float cx, float cy, float cz, float vx, float vy, float vz,
-    float ax, float ay, float az, float mass, float radius, int i);
+    float ax, float ay, float az, float mass, float radius, uint8_t type, int i);
 void init_star(StellarStore *ss, float initial_mass, float radius, int bs_index, int ss_i);
-void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius, double max_radius);
-float calculate_asteroid_mass();
+void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius, double max_radius, double rad_min_km, double rad_max_km);
+static void calculate_asteroid_properties(float *mass_out, float *radius_out, double min_km, double max_km);
 int setupEnvironment(BodyStore *bs, StellarStore *ss, int colours[][3], char *inputFile);
 
 /*physics steps*/
@@ -41,6 +43,8 @@ void integration_step2(BodyStore *bs, float dt);
 void draw(SDL_Renderer *renderer, int cx, int cy, int radius);
 void render_simulation(SDL_Renderer *renderer, BodyStore *bs, int colours[][3], int n, int width, int height, double zoom, double cam_x, double cam_y);
 
+/*cleanup*/
+void bodystore_free(BodyStore *bs);
 
 void count_bodies(char *inputFile, int *n, int *n_stars) {
 
@@ -48,7 +52,6 @@ void count_bodies(char *inputFile, int *n, int *n_stars) {
 
   if (!fptr) {
     fprintf(stderr, "Could not open file: %s\n", inputFile);
-    //return -1;
   }
   char inputLine[200];
 
@@ -71,8 +74,6 @@ void count_bodies(char *inputFile, int *n, int *n_stars) {
   }
 
   fclose(fptr);
-
-  //return i;
 }
 
 size_t aligned_size(int n) {
@@ -97,6 +98,7 @@ BodyStore* init_bodystore(int n) {
   bs->az = aligned_alloc(64, sz);
   bs->mass = aligned_alloc(64, sz);
   bs->radius = aligned_alloc(64, sz);
+  bs->type = aligned_alloc(64, sz);
   bs->n = n;
 
   memset(bs->cx, 0, sz); 
@@ -105,7 +107,20 @@ BodyStore* init_bodystore(int n) {
   memset(bs->ax, 0, sz);
   memset(bs->ay, 0, sz);
   memset(bs->az, 0, sz);
+  memset(bs->type, BODY_ASTEROID, sz);
   return bs;
+}
+
+void bodystore_free(BodyStore *bs) {
+  if (!bs) return;
+  free(bs->x);  free(bs->y);  free(bs->z);
+  free(bs->cx);  free(bs->cy);  free(bs->cz);
+  free(bs->vx);  free(bs->vy);  free(bs->vz);
+  free(bs->ax);  free(bs->ay);  free(bs->az);
+  free(bs->mass);  
+  free(bs->radius);
+  free(bs->type);
+  free(bs);
 }
 
 StellarStore* init_stellarstore(int n_stars) {
@@ -145,7 +160,7 @@ StellarStore* init_stellarstore(int n_stars) {
 //}
 
 void init_body(BodyStore *bs, float x, float y, float z, float cx, float cy, float cz, float vx, float vy, float vz,
-    float ax, float ay, float az, float mass, float radius, int i) {
+    float ax, float ay, float az, float mass, float radius, uint8_t type, int i) {
 
   bs->x[i] = x;
   bs->y[i] = y;
@@ -161,6 +176,7 @@ void init_body(BodyStore *bs, float x, float y, float z, float cx, float cy, flo
   bs->az[i] = az;
   bs->mass[i] = mass;
   bs->radius[i] = radius;
+  bs->type[i] = type;
 }
 
 void init_star(StellarStore *ss, float initial_mass, float radius, int bs_index, int ss_i) {
@@ -178,7 +194,7 @@ void init_star(StellarStore *ss, float initial_mass, float radius, int bs_index,
   ss->bodystore_index[ss_i] = bs_index;
 }
 
-void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius, double max_radius) {
+void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius, double max_radius, double rad_min_km, double rad_max_km) {
 
   double r = min_radius + ((double)rand() / RAND_MAX) * (max_radius - min_radius);
   double angle = ((double) rand() / RAND_MAX) * 2 * M_PI;
@@ -195,22 +211,24 @@ void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius,
   float vy = bs->vy[central_idx] + orbital_speed * cos(angle);
   float vz = bs->vz[central_idx];
 
-  float mass = calculate_asteroid_mass();
+  float mass, radius;
+  calculate_asteroid_properties(&mass, &radius, rad_min_km, rad_max_km);
 
-  init_body(bs, x, y, z, 0, 0, 0, vx, vy, vz, 0, 0, 0, mass, r, i);
+  init_body(bs, x, y, z, 0, 0, 0, vx, vy, vz, 0, 0, 0, mass, radius, BODY_ASTEROID, i);
 }
 
 /*Pick asteroid type for generated asteroid and calculate weight accordingly,
  * converted to AU*/
-float calculate_asteroid_mass() {
+static void calculate_asteroid_properties(float *mass_out, float *radius_out, double min_km, double max_km) {
   /*1. C-type (Carbonaceous): density range of 1380 - 1800 kg/m^3
   * 2. S-type (Stony):  density range of 2000-3000 kg/m^3
   * 3. M-type (Metallic): density range of 3500 - 5300 kg/m^3
   */
-  double si_radius = 1 + ((double) rand() / RAND_MAX) * (467 - 1) ;
+  double u = (double) rand() / RAND_MAX;
+  double radius_m = 1000 * min_km * pow(max_km / min_km, u);
+
   int type = rand() % 3 + 1;
   double min_density, max_density;
-
   switch(type) {
     case 1:
       min_density = 1380;
@@ -226,15 +244,12 @@ float calculate_asteroid_mass() {
       break;
   }
 
-  double volume = (4.0 / 3.0) * M_PI * pow(si_radius, 3);
+  double volume_m3 = (4.0 / 3.0) * M_PI * pow(radius_m, 3);
 
   double density = min_density + ((double) rand() / RAND_MAX) * (max_density - min_density);
 
-  double si_mass = volume * density;
-
-  double mass = si_mass / SOLAR_MASS_KG;
-
-  return (float) mass;
+  *mass_out = (float) ((volume_m3 * density) / SOLAR_MASS_KG);
+  *radius_out = (float) (radius_m / AU_IN_METRES);
 }
 
 int setupEnvironment(BodyStore *bs, StellarStore *ss, int colours[][3], char *inputFile) {
@@ -261,6 +276,9 @@ int setupEnvironment(BodyStore *bs, StellarStore *ss, int colours[][3], char *in
     
     if (strcmp(token, "s") == 0 || strcmp(token, "p") == 0 || strcmp(token, "m") == 0) {
       
+      uint8_t type = BODY_PLANET;
+      if (token[0] == 's') type = BODY_STAR;
+      else if (token[0] == 'm') type = BODY_MOON;
       float x = atof(strtok(NULL, " "));
       float y = atof(strtok(NULL, " "));
       float z = atof(strtok(NULL, " ")); 
@@ -280,7 +298,7 @@ int setupEnvironment(BodyStore *bs, StellarStore *ss, int colours[][3], char *in
       colours[i][1] = atoi(strtok(NULL, " "));
       colours[i][2] = atoi(strtok(NULL, " "));
 
-      init_body(bs, x, y, z, 0, 0, 0, vx, vy, vz, ax, ay, az, mass, radius, i);
+      init_body(bs, x, y, z, 0, 0, 0, vx, vy, vz, ax, ay, az, mass, radius, type, i);
       if (strcmp(stellar_check, "s") == 0) {
         init_star(ss, mass, radius, i, ss_i); 
         stellar_check = NULL;
@@ -293,14 +311,23 @@ int setupEnvironment(BodyStore *bs, StellarStore *ss, int colours[][3], char *in
       int central_body_index = atoi(strtok(NULL, " "));
       float dist1 = atof(strtok(NULL, " "));
       float dist2 = atof(strtok(NULL, " "));
+      double rad_min_km = atof(strtok(NULL, " "));
+      double rad_max_km = atof(strtok(NULL, " "));
       int r = atoi(strtok(NULL, " "));
       int g = atoi(strtok(NULL, " "));
       int b = atoi(strtok(NULL, " "));
     
       int total = i + asteroid_count;
+
+      if (rad_min_km <= 0 || rad_max_km < rad_min_km) {
+        fprintf(stderr, "Invalid asteroid range: %g..%g km\n", rad_min_km, rad_max_km);
+        fclose(fptr);
+        return -1;
+      }
+
       /*add asteroids*/
       for (int j = i; j < total; j++) { //2.2  3.2 for solar system
-        generate_asteroid(bs, central_body_index, j, dist1, dist2);
+        generate_asteroid(bs, central_body_index, j, dist1, dist2, rad_min_km, rad_max_km);
 
         colours[j][0] = r;
         colours[j][1] = g;
@@ -345,43 +372,6 @@ void integration_step1(BodyStore *bs, float dt){
 
 }
 
-/*void compute_acceleration(Body *bodies, int n, double softening) {
-  
-  for (int i = 0; i < n; i++) {
-    bodies[i].acceleration = (Vec) {0, 0, 0};
-  }
-
-  for (int i = 0; i < n; i++) {
-
-    for (int j = i + 1; j < n; j++)
-    {
-      if (i==j) continue;
-
-       distance between i and j
-     Vec r_vec = sub_vectors(bodies[j].position, bodies[i].position);
-
-      double distance_sq = vector_magnitude_sq(r_vec) + (softening * softening);
-      double distance = sqrt(distance_sq);
-
-      * lambda = G * mass i * mass j / distance^3 *
-      * force = lambda * r_vec *
-      double force = (G * bodies[i].mass * bodies[j].mass) / (distance_sq * distance);
-      Vec force_vec = multiply_vector(r_vec, force);
-
-      *i pulled toward j (positive direction)
-       * a_i = F / m_i *
-      Vec acc_i = multiply_vector(force_vec, 1/bodies[i].mass);
-      bodies[i].acceleration = add_vectors(bodies[i].acceleration, acc_i);
-
-      * j pulled toward i (opposite direction of force_vec, i.e. -force_vec) 
-       * a_j = -F / m_j  *
-      Vec acc_j = multiply_vector(force_vec, -1/bodies[j].mass);
-      bodies[j].acceleration = add_vectors(bodies[j].acceleration, acc_j);
-    }
-
-  }
-}*/
-
 void integration_step2(BodyStore *bs, float dt) {
 
   for (int i = 0; i < bs->n; i++) {
@@ -409,29 +399,26 @@ void render_simulation(SDL_Renderer *renderer, BodyStore *bs, int colours[][3], 
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // black background
   SDL_RenderClear(renderer);
 
+  float MIN_PX[4] = {6.0f, 2.5f, 1.5f, 1.0f};//min size star, planet, moon, asteroid
+
   for (int i = 0; i < n; i++) {
     int red = colours[i][0];
     int green = colours[i][1];
     int blue = colours[i][2];
+    
+    float sx = width * 0.5f + (bs->x[i] + cam_x) * zoom;
+    float sy = height * 0.5f + (bs->y[i] + cam_y) * zoom;
+    float r_px = fmaxf(bs->radius[i] * zoom, MIN_PX[bs->type[i]]);
+  
+    if (sx < -r_px || sx > width + r_px || sy < -r_px || sy > height + r_px) continue;
+
     SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
 
-/*    if (bodies[i].has_trail) {
-      for (int j = 0; j < TRAIL_SIZE - 1; j++) {
-        int idx1 = (bodies[i].history_index + j) % TRAIL_SIZE;
-        int idx2 = (bodies[i].history_index + j + 1) % TRAIL_SIZE;
-
-        if (vector_magnitude_sq(bodies[i].history[idx1]) == 0 || vector_magnitude_sq(bodies[i].history[idx2]) == 0) continue;
-
-        int x1 = width/2 + (bodies[i].history[idx1].x  + cam_x) * zoom;
-        int y1 = height/2 + (bodies[i].history[idx1].y + cam_y) * zoom;
-        int x2 = width/2 + (bodies[i].history[idx2].x + cam_x) * zoom;
-        int y2 = height/2 + (bodies[i].history[idx2].y + cam_y) * zoom;
-        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
-      }
-    }*/
-    int draw_x = width / 2 + (bs->x[i] + cam_x) * zoom;
-    int draw_y = height / 2 + (bs->y[i] + cam_y) * zoom;
-    draw(renderer, draw_x, draw_y, bs->radius[i]);
+    if (bs->type[i] == BODY_ASTEROID) {
+      SDL_RenderDrawPoint(renderer, (int) sx, (int) sy);
+    } else {
+      draw(renderer, (int) sx, (int) sy, (int) (r_px + 0.5f));
+    }
   }
 
   SDL_RenderPresent(renderer);
@@ -456,7 +443,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Failed to read bodies from file\n");
     return 1;
   }
-  //octree_init_nodepool(n);
+
   LinearBHTree *tree = linearbh_init(n);
 
   int (*colours)[3] = calloc(n, sizeof(*colours));
@@ -473,7 +460,9 @@ int main(int argc, char *argv[]) {
   }
 
   int width = 800, height = 600;
-  SDL_Window *win = SDL_CreateWindow("3-Body Simulation", 1000, 1000, width, height, SDL_WINDOW_SHOWN);
+  SDL_Window *win = SDL_CreateWindow("Simulation", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
+  if (win == NULL) { printf("SDL_CreateWindow Error: %s\n", SDL_GetError()); return 1; }
+
   SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN_DESKTOP);
   if (!win) { printf("SDL_CreateWindow Error: %s\n", SDL_GetError()); return 1; }
 
@@ -508,12 +497,12 @@ int main(int argc, char *argv[]) {
             break;
           case SDLK_PLUS:
           case SDLK_KP_PLUS:
-            zoom += 10;
+            zoom *= 1.1;
             break;
           case SDLK_MINUS:
           case SDLK_KP_MINUS:
             if (zoom == 0) break;
-            zoom -= 10;
+            zoom /= 1.1;
             break;
         }
       }
@@ -525,11 +514,6 @@ int main(int argc, char *argv[]) {
     //dt = 0.001; 
     for (int step = 0; step < 50; step++) {
       integration_step1(bs, dt);  
-      // compute_acceleration(bodies, n, 1e-6);
-
-      /*OctreeNode *root = octree_build(bs, n);
-      octree_compute_acceleration(root, bs, n, THETA, SOFTENING, G);
-      octree_free();*/
 
       linearbh_build(tree, bs, n);
       linearbh_compute_acceleration(tree, bs, n, THETA, SOFTENING, G);
@@ -541,7 +525,7 @@ int main(int argc, char *argv[]) {
     render_simulation(renderer, bs, colours, n, width, height, zoom, cam_x, cam_y);
   }
 
-	free(bs);
+	bodystore_free(bs);
   free(colours);
   linearbh_free(tree);
   SDL_DestroyRenderer(renderer);

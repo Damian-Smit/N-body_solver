@@ -2,18 +2,30 @@
 #define BODY_H
 
 #include "vec.h"
+#include "stdint.h"
 
 #define TRAIL_SIZE 0
 
+typedef enum {
+  BODY_STAR = 0,
+  BODY_PLANET = 1,
+  BODY_MOON = 2,
+  BODY_ASTEROID = 3
+} BodyType;
+
 typedef struct {
+  /*position*/
   float *x, *y, *z;
   float *cx, *cy, *cz;
   
-  float *vx, *vy, *vz;
-  float *ax, *ay, *az;
+  float *vx, *vy, *vz; /*velocity*/
+  float *ax, *ay, *az; /*acceleration*/
+
   float *mass;
   float *radius;
 
+  uint8_t *type;
+  
   int n;
 
 } BodyStore;
