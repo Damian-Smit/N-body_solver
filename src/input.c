@@ -3,7 +3,45 @@
 #include <SDL2/SDL_keycode.h>
 #include "camera.h"
 #include "input.h"
+#include <math.h>
 
+#define PAN_SPEED 700 //pixel per second
+#define ZOOM_RATE 4 //zoom muliplier per second while held
+
+static void mouse_cords(SDL_Window *win, Camera *cam, double mx, double my, 
+                        double *px, double *py) {
+
+  int window_width, window_height;
+  SDL_GetWindowSize(win, &window_width, &window_height);
+  *px = mx * (double) cam->w / window_width;
+  *py = my * (double) cam->h / window_height;
+}
+
+//return index of next follow, -1 then none to follow
+static int next_follow(BodyStore *bs, int current, int direction) {
+  int i = 0;
+  if (current < 0 && direction < 0) {
+    i = bs->n;
+    while (bs->type[i] == BODY_ASTEROID && i > 0) {
+      i--;
+    }
+    return i;
+  }
+
+  i = current + direction;
+  if (direction < 0) {
+    while(bs->type[i] == BODY_ASTEROID && i > 0) {
+      i--;
+    }
+    return i;
+  } else {
+    while (bs->type[i] == BODY_ASTEROID && i < bs->n) {
+      i++;
+    }
+    return (i < bs->n) ? i : bs->n;
+  }
+  
+}
 
 //Space bar = pause/unpause
 //f, f11 = fullscreen
@@ -11,13 +49,12 @@
 //q = close
 //[ = halve substeps
 //] = double substeps
-//arrows = left/right/up/down
+//arrows / wasd = left/right/up/down
 //plus = zoom in
 //minus = zoom out
 //r = reset camera
-//w = incease dt
-//s = decrease dt
-void event_handler(App *app, Camera *cam, SDL_Window *win, SDL_Renderer *renderer) {
+void event_handler(App *app, Camera *cam, SDL_Window *win, 
+                  SDL_Renderer *renderer, BodyStore *bs) {
   SDL_Event e;  
 
   while (SDL_PollEvent(&e)) {
@@ -27,9 +64,33 @@ void event_handler(App *app, Camera *cam, SDL_Window *win, SDL_Renderer *rendere
       SDL_GetRendererOutputSize(renderer, &cam->w, &cam->h);
     }
 
+    if (e.type == SDL_MOUSEWHEEL) {
+      if (e.wheel.y == 0) continue;
+      double factor = (e.wheel.preciseY > 0) ? 1.1 : 1 / 1.1;
+      int mx, my;
+      SDL_GetMouseState(&mx, &my);
+  
+      double px, py;
+      mouse_cords(win, cam, mx, my, &px, &py);
+      camera_zoom_at(cam, factor, px, py);
+    }
+
+    if (e.type == SDL_MOUSEMOTION && (e.motion.state & SDL_BUTTON_LMASK)) {
+      app->follow = -1;
+      double px, py;
+      mouse_cords(win, cam, e.motion.xrel, e.motion.yrel, &px, &py);
+      
+      cam->tx -= px / cam->zoom;
+      cam->ty -= py / cam->zoom;
+      
+      cam->x = cam->tx;
+      cam->y = cam->ty;
+    }
+
     if (e.type == SDL_KEYDOWN) {
       switch (e.key.keysym.sym) {
         case SDLK_ESCAPE:
+          if (e.key.repeat) break;
           if (app->fullscreen == 1) {
             SDL_SetWindowFullscreen(win, 0);
             app->fullscreen = 0;
@@ -37,10 +98,17 @@ void event_handler(App *app, Camera *cam, SDL_Window *win, SDL_Renderer *rendere
             app->running = 0;
           }
           break;
+        case SDLK_TAB:
+          if (e.key.repeat) break;
+          //shift+TAB backwrads, TAB forwards
+          int direction = (e.key.keysym.mod & KMOD_SHIFT) ? -1 : 1;
+          app->follow = next_follow(bs, app->follow, direction);
+          break;
         case SDLK_q:
           app->running = 0;
           break;
         case SDLK_SPACE:
+          if (e.key.repeat) break;
           app->paused = (app->paused == 1) ? 0 : 1;
           break;
         case SDLK_LEFTBRACKET:
@@ -51,6 +119,7 @@ void event_handler(App *app, Camera *cam, SDL_Window *win, SDL_Renderer *rendere
           break;
         case SDLK_f:
         case SDLK_F11:
+          if (e.key.repeat) break;
           if (app->fullscreen == 1) {
             SDL_SetWindowFullscreen(win, 0);
             app->fullscreen = 0;
@@ -61,35 +130,36 @@ void event_handler(App *app, Camera *cam, SDL_Window *win, SDL_Renderer *rendere
           break;
         case SDLK_r:
           camera_reset(cam);
-          break;
-        case SDLK_w:
-          //up dt
-          break;
-        case SDLK_s:
-          //drop dt
-          break;
-        case SDLK_LEFT:
-          cam->tx -= 10 / cam->zoom;
-          break;
-        case SDLK_RIGHT:
-          cam->tx += 10 / cam->zoom;
-          break;
-        case SDLK_UP:
-          cam->ty -= 10 / cam->zoom;
-          break;
-        case SDLK_DOWN:
-          cam->ty += 10 / cam->zoom;
-          break;
-        case SDLK_PLUS:
-        case SDLK_KP_PLUS:
-        case SDLK_EQUALS:
-          camera_zoom_at(cam, 1.1, cam->w / 2, cam->h / 2);
-          break;
-        case SDLK_MINUS:
-        case SDLK_KP_MINUS:
-          camera_zoom_at(cam, 1 / 1.1, cam->w / 2, cam->h / 2);
+          app->follow = -1;
           break;
       }
     }
+  }
+}
+
+void held_input_handler(App *app, Camera *cam, double frame_dt) {
+
+  const Uint8 *keys = SDL_GetKeyboardState(NULL);
+
+  //pan
+  double dir_x = 0, dir_y = 0;
+  if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) dir_x -= 1;
+  if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) dir_x += 1;
+  if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W]) dir_y -= 1;
+  if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S]) dir_y += 1;
+
+  if (dir_x != 0 || dir_y != 0) {
+    app->follow = -1;
+    cam->tx += dir_x * PAN_SPEED * frame_dt / cam->zoom;
+    cam->ty += dir_y * PAN_SPEED * frame_dt / cam->zoom;
+  }
+
+  //zoom
+  int zin = keys[SDL_SCANCODE_EQUALS] || keys[SDL_SCANCODE_KP_PLUS];
+  int zout = keys[SDL_SCANCODE_MINUS] || keys[SDL_SCANCODE_KP_MINUS];
+  
+  if (zin != zout) {
+    double factor = pow(ZOOM_RATE, zin ? frame_dt : -frame_dt);
+    camera_zoom_at(cam, factor, cam->w / 2.0, cam->h / 2.0);
   }
 }

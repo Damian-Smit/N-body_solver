@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
   int n = 0, n_stars = 0;
   int sdl_ready = 0;
   Uint64 freq = 0;
+  Uint64 last = 0;
   int exit_code = 1;
 
   LinearBHTree *tree = NULL;
@@ -119,15 +120,21 @@ int main(int argc, char *argv[]) {
   camera_reset(&cam);
 
   freq = SDL_GetPerformanceFrequency();
-
+  last = SDL_GetPerformanceCounter();
   while (app.running) {
 
-    event_handler(&app, &cam, win, renderer);
+    Uint64 now = SDL_GetPerformanceCounter();
+    double frame_dt = (double) (now - last) / (double) freq;
+    last = now;
+    if (frame_dt < 0.01) frame_dt = 0.01;
+    event_handler(&app, &cam, win, renderer, bs);
+    held_input_handler(&app, &cam, frame_dt);
 
     if (app.paused == 0) {
       Uint64 start = SDL_GetPerformanceCounter();
       int completed_steps = 0;
       for (int step = 0; step < app.substeps; step++) {
+
         integration_step1(bs, SIM_DT);  
 
         linearbh_build(tree, bs, n);
@@ -137,13 +144,20 @@ int main(int argc, char *argv[]) {
         completed_steps++;
 
         //break if substepping takes longer than 50ms
-        int now = (SDL_GetPerformanceCounter() - start) / freq;
-        if (now > 50) break;
+        int elapsed = (SDL_GetPerformanceCounter() - start) / freq;
+        if (elapsed > 50) break;
       }
       app.sim_time += completed_steps * SIM_DT;
     }
 
-    camera_update(&cam, 1.0/60.0);
+    if (app.follow > 0) {
+      cam.x = bs->x[app.follow];
+      cam.y = bs->y[app.follow];
+      cam.tx = bs->x[app.follow];
+      cam.ty = bs->y[app.follow];
+    }
+
+    camera_update(&cam, frame_dt);
     render_simulation(renderer, bs, colours, n, &cam);
   }
   
