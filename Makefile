@@ -3,7 +3,7 @@ CFLAGS  = -Wall -Wextra -O2 -std=c11 -MMD -MP $(shell sdl2-config --cflags)
 LDFLAGS = $(shell sdl2-config --libs) -lm
 TARGET  = gravitySimulator
  
-SRC     = src/gravitySimulator.c src/vec.c src/linearBH.c
+SRC     = src/gravitySimulator.c src/vec.c src/linearBH.c src/render.c src/input.c src/setup.c
 OBJ     = $(SRC:.c=.o)
 DEPS    = $(OBJ:.o=.d)
  

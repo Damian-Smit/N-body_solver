@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "linearBH.h"
+#include "constants.h"
 
 #define MIN_HALF_WIDTH 1e-9
 
@@ -191,7 +192,7 @@ static COMResult compute_com(LinearBHTree *tree, BodyStore *bs, int child, int i
 }
 
 void linearbh_compute_acceleration(LinearBHTree *tree, BodyStore *bs, int n,
-    float theta, float softening, float G) {
+    float theta, float softening) {
 
   StackEntry stack[MAX_DEPTH];
 

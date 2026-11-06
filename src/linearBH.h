@@ -36,7 +36,7 @@ void linearbh_build(LinearBHTree *tree, BodyStore *bs, int n);
 
 /*Compute acceleration using Barnes-Hut critetion*/
 void linearbh_compute_acceleration(LinearBHTree *tree, BodyStore *bs, 
-                          int n, float theta, float softening, float G);
+                          int n, float theta, float softening);
 
 /*Free all memory owned by tree context*/
 void linearbh_free(LinearBHTree *tree);
