@@ -13,6 +13,7 @@
 #include "render.h"
 #include "input.h"
 #include "setup.h"
+#include "camera.h"
 
 /*physics steps*/
 static inline void kahan_add(float *val, float *comp, float delta);
@@ -63,9 +64,19 @@ void integration_step2(BodyStore *bs, float dt) {
 
 int main(int argc, char *argv[]) {
   int n = 0, n_stars = 0;
-  float dt = 0.01;
-  double zoom = 10;
-  double cam_x = 0, cam_y = 0;
+  int sdl_ready = 0;
+  Uint64 freq = 0;
+  int exit_code = 1;
+
+  LinearBHTree *tree = NULL;
+  int (*colours)[3] = NULL;
+  BodyStore *bs = NULL;
+  StellarStore *ss = NULL;
+  SDL_Window *win = NULL;
+  SDL_Renderer *renderer = NULL;
+  
+  App app = { .running = 1, .substeps = 50, .follow = -1};
+  Camera cam = {0};
 
   if (argc < 2) {
     fprintf(stderr, "incorrect arg count %d\n", argc);
@@ -79,92 +90,72 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  LinearBHTree *tree = linearbh_init(n);
+  tree = linearbh_init(n);
+  colours = calloc(n, sizeof(*colours));
+  bs = init_bodystore(n);
+  ss = init_stellarstore(n_stars);
 
-  int (*colours)[3] = calloc(n, sizeof(*colours));
-  BodyStore *bs = init_bodystore(n);
-  StellarStore *ss = init_stellarstore(n_stars);
-
-  if (setupEnvironment(bs, ss, colours, argv[1]) != 1) {
-    return 1;
-  }
+  if (setupEnvironment(bs, ss, colours, argv[1]) != 1) goto cleanup;
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
-    return 1;
+    goto cleanup;
   }
 
-  int width = 800, height = 600;
-  SDL_Window *win = SDL_CreateWindow("Simulation", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
-  if (win == NULL) { printf("SDL_CreateWindow Error: %s\n", SDL_GetError()); return 1; }
+  win = SDL_CreateWindow("Simulation", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                        1280, 720, SDL_WINDOW_RESIZABLE);
+  if (!win) { 
+    printf("SDLcCreateWindow Error: %s\n", SDL_GetError());
+    goto cleanup;
+  }
+  
+  renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (!renderer) {
+    printf("SDL_CreateRenderer Error: %s\n", SDL_GetError());
+    goto cleanup;
+  }
 
-  SDL_SetWindowFullscreen(win, SDL_WINDOW_FULLSCREEN_DESKTOP);
-  if (!win) { printf("SDL_CreateWindow Error: %s\n", SDL_GetError()); return 1; }
+  SDL_GetRendererOutputSize(renderer, &cam.w, &cam.h);
+  camera_reset(&cam);
 
-  SDL_Renderer *renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-  if (!renderer) { printf("SDL_CreateRenderer Error: %s\n", SDL_GetError()); return 1; }
+  freq = SDL_GetPerformanceFrequency();
 
-  SDL_GetRendererOutputSize(renderer, &width, &height);
+  while (app.running) {
 
-  int running = 1;
-  SDL_Event e;
+    event_handler(&app, &cam, win, renderer);
 
-  while (running) {
+    if (app.paused == 0) {
+      Uint64 start = SDL_GetPerformanceCounter();
+      int completed_steps = 0;
+      for (int step = 0; step < app.substeps; step++) {
+        integration_step1(bs, SIM_DT);  
 
-    while (SDL_PollEvent(&e)) {
-      if (e.type == SDL_QUIT) running = 0;
+        linearbh_build(tree, bs, n);
+        linearbh_compute_acceleration(tree, bs, n, THETA, SOFTENING);
 
-      if (e.type == SDL_KEYDOWN) {
-        //pan speed
-        double pan = 1 / zoom;
-        switch (e.key.keysym.sym) {
-          case SDLK_LEFT:
-            cam_x += pan * 10;
-            break;
-          case SDLK_RIGHT:
-            cam_x -= pan * 10;
-            break;
-          case SDLK_UP:
-            cam_y += pan * 10;
-            break;
-          case SDLK_DOWN:
-            cam_y -= pan * 10;
-            break;
-          case SDLK_PLUS:
-          case SDLK_KP_PLUS:
-            zoom *= 1.1;
-            break;
-          case SDLK_MINUS:
-          case SDLK_KP_MINUS:
-            if (zoom == 0) break;
-            zoom /= 1.1;
-            break;
-        }
+        integration_step2(bs, SIM_DT);
+        completed_steps++;
+
+        //break if substepping takes longer than 50ms
+        int now = (SDL_GetPerformanceCounter() - start) / freq;
+        if (now > 50) break;
       }
+      app.sim_time += completed_steps * SIM_DT;
     }
 
-    //sub stepping, only update visually every x steps 
-    //allows dt to be smaller == higher simulation stability
-    dt = 0.0001;
-    //dt = 0.001; 
-    for (int step = 0; step < 50; step++) {
-      integration_step1(bs, dt);  
-
-      linearbh_build(tree, bs, n);
-      linearbh_compute_acceleration(tree, bs, n, THETA, SOFTENING);
-
-      integration_step2(bs, dt);
-    }
-
-    // render
-    render_simulation(renderer, bs, colours, n, width, height, zoom, cam_x, cam_y);
+    camera_update(&cam, 1.0/60.0);
+    render_simulation(renderer, bs, colours, n, &cam);
   }
+  
+  exit_code = 0;
 
-	bodystore_free(bs);
-  free(colours);
-  linearbh_free(tree);
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(win);
-	SDL_Quit();
-  return 0;
+  cleanup:
+    if (renderer) SDL_DestroyRenderer(renderer);
+    if (win) SDL_DestroyWindow(win);
+    if (sdl_ready) SDL_Quit();
+    if (tree) linearbh_free(tree);
+    free(colours);
+    bodystore_free(bs);
+    stellarstore_free(ss);
+  return exit_code;
 }

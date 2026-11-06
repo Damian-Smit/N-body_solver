@@ -19,7 +19,9 @@ void draw(SDL_Renderer *renderer, int cx, int cy, int radius) {
   }
 }
 
-void render_simulation(SDL_Renderer *renderer, BodyStore *bs, int colours[][3], int n, int width, int height, double zoom, double cam_x, double cam_y) {
+void render_simulation(SDL_Renderer *renderer, BodyStore *bs, 
+                      int colours[][3], int n, Camera *cam) {
+
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // black background
   SDL_RenderClear(renderer);
 
@@ -30,11 +32,12 @@ void render_simulation(SDL_Renderer *renderer, BodyStore *bs, int colours[][3], 
     int green = colours[i][1];
     int blue = colours[i][2];
     
-    float sx = width * 0.5f + (bs->x[i] + cam_x) * zoom;
-    float sy = height * 0.5f + (bs->y[i] + cam_y) * zoom;
-    float r_px = fmaxf(bs->radius[i] * zoom, MIN_PX[bs->type[i]]);
-  
-    if (sx < -r_px || sx > width + r_px || sy < -r_px || sy > height + r_px) continue;
+    float sx = cam->w * 0.5f + (bs->x[i] - cam->x) * cam->zoom;
+    float sy = cam->h * 0.5f + (bs->y[i] - cam->y) * cam->zoom;
+    float r_px = fmaxf(bs->radius[i] * cam->zoom, MIN_PX[bs->type[i]]);
+ 
+    //Only draw what is on screen
+    if (sx < -r_px || sx > cam->w + r_px || sy < -r_px || sy > cam->h + r_px) continue;
 
     SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
 
@@ -46,6 +49,4 @@ void render_simulation(SDL_Renderer *renderer, BodyStore *bs, int colours[][3], 
   }
 
   SDL_RenderPresent(renderer);
-
-  SDL_Delay(10); // ~100 FPS
 }

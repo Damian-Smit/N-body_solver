@@ -1,6 +1,8 @@
 #ifndef constants_H
 #define constants_H
 
+#define SIM_DT 1e-4f  //years per substep
+
 #define M_PI 3.14159265358979323846
 #define G (4 * M_PI * M_PI)//AU version of constant
 #define EPS 1e-3

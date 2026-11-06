@@ -119,6 +119,20 @@ StellarStore* init_stellarstore(int n_stars) {
   return ss;
 }
 
+void stellarstore_free(StellarStore *ss) {
+  if (!ss) return;
+  free(ss->initial_mass);
+  free(ss->age);
+  free(ss->luminosity);
+  free(ss->temperature); 
+  free(ss->death_age);
+  free(ss->current_mass);
+  free(ss->radius);
+  free(ss->phase); 
+  free(ss->bodystore_index);
+
+}
+
 //EvolutionTable init_evotable(EvolutionTable *evo_table) {
 /* TODO init the table somehow, also somehow calculate all the other bullshit
 * like luminosity and what type of star it is, use to properly init star in
