@@ -102,6 +102,7 @@ int main(int argc, char *argv[]) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
     goto cleanup;
   }
+  sdl_ready = 1;
 
   win = SDL_CreateWindow("Simulation", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                         1280, 720, SDL_WINDOW_RESIZABLE);
@@ -126,7 +127,7 @@ int main(int argc, char *argv[]) {
     Uint64 now = SDL_GetPerformanceCounter();
     double frame_dt = (double) (now - last) / (double) freq;
     last = now;
-    if (frame_dt < 0.01) frame_dt = 0.01;
+    if (frame_dt > 0.1) frame_dt = 0.1;
     event_handler(&app, &cam, win, renderer, bs);
     held_input_handler(&app, &cam, frame_dt);
 
@@ -144,13 +145,13 @@ int main(int argc, char *argv[]) {
         completed_steps++;
 
         //break if substepping takes longer than 50ms
-        int elapsed = (SDL_GetPerformanceCounter() - start) / freq;
-        if (elapsed > 50) break;
+        double elapsed = (double) (SDL_GetPerformanceCounter() - start) / (double) freq;
+        if (elapsed > 0.05) break;
       }
       app.sim_time += completed_steps * SIM_DT;
     }
 
-    if (app.follow > 0) {
+    if (app.follow >= 0) {
       cam.x = bs->x[app.follow];
       cam.y = bs->y[app.follow];
       cam.tx = bs->x[app.follow];

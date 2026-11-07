@@ -11,7 +11,7 @@ typedef struct {
   int paused; //pauses app when ==1
   int fullscreen; //fullscreen app when ==1
   int substeps; //amount of steps per render frame
-  int sim_time; //years elapsed
+  double sim_time; //years elapsed
   int follow; //index of the body the camera is locked too (-1 for none)
 } App;
 

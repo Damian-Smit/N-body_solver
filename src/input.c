@@ -21,7 +21,7 @@ static void mouse_cords(SDL_Window *win, Camera *cam, double mx, double my,
 static int next_follow(BodyStore *bs, int current, int direction) {
   int i = 0;
   if (current < 0 && direction < 0) {
-    i = bs->n;
+    i = bs->n - 1;
     while (bs->type[i] == BODY_ASTEROID && i > 0) {
       i--;
     }
@@ -29,16 +29,17 @@ static int next_follow(BodyStore *bs, int current, int direction) {
   }
 
   i = current + direction;
+  if (i < 0) return -1;
   if (direction < 0) {
-    while(bs->type[i] == BODY_ASTEROID && i > 0) {
+    while(i > 0 && bs->type[i] == BODY_ASTEROID) {
       i--;
     }
     return i;
   } else {
-    while (bs->type[i] == BODY_ASTEROID && i < bs->n) {
+    while (i < bs->n && bs->type[i] == BODY_ASTEROID) {
       i++;
     }
-    return (i < bs->n) ? i : bs->n;
+    return (i < bs->n) ? i : -1;
   }
   
 }
