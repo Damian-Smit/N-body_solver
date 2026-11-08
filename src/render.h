@@ -8,6 +8,7 @@
 #include <SDL2/SDL.h>
 #include "bodyStore.h"
 #include "camera.h"
+#include "trails.h"
 
 /**
  *  @struct RenderAssets
@@ -37,8 +38,8 @@ int render_init(RenderAssets *ra, SDL_Renderer *renderer);
  *  @param n Total number of bodies
  *  @param cam Pointer to the Camera struct
  */
-void render_simulation(SDL_Renderer *renderer, RenderAssets *ra,
-                        BodyStore *bs, int colours[][3], int n, Camera *cam);
+void render_simulation(SDL_Renderer *renderer, RenderAssets *ra, BodyStore *bs,
+                        int colours[][3], int n, Camera *cam, Trails *trail);
 
 /**
  *  @brief Frees all textures allocated within RenderAssets

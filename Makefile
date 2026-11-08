@@ -2,8 +2,13 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -std=c11 -MMD -MP $(shell sdl2-config --cflags)
 LDFLAGS = $(shell sdl2-config --libs) -lSDL2_ttf -lm
 TARGET  = gravitySimulator
- 
-SRC     = src/gravitySimulator.c src/linearBH.c src/render.c src/input.c src/setup.c src/camera.c src/hud.c
+
+TRAILS ?= false
+ifeq ($(TRAILS), true)
+CFLAGS += -DTRAILS_ENABLED=1
+endif
+
+SRC     = src/gravitySimulator.c src/linearBH.c src/render.c src/input.c src/setup.c src/camera.c src/hud.c src/trails.c
 OBJ     = $(SRC:.c=.o)
 DEPS    = $(OBJ:.o=.d)
  

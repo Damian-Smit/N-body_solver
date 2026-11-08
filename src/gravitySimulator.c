@@ -3,13 +3,12 @@
 * @brief Main simulation loop, Velocity Verlet numerical integration and
 * initialisation runner
 */
+#include <SDL2/SDL_blendmode.h>
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_video.h>
 #include <stdio.h>
-#include <math.h>
 #include <stdlib.h>
 #include <SDL2/SDL.h>
-#include <string.h>
 #include <wchar.h>
 
 #include "bodyStore.h"
@@ -108,6 +107,7 @@ int main(int argc, char *argv[]) {
   Camera cam = {0};
   Hud hud = {0};
   RenderAssets render_assets = {0};
+  Trails trails = {0};
 
   if (argc < 2) {
     fprintf(stderr, "incorrect arg count %d\n", argc);
@@ -147,6 +147,11 @@ int main(int argc, char *argv[]) {
     goto cleanup;
   }
 
+  #if TRAILS_ENABLED
+    if (trails_init(&trails, bs) == -1) {
+      goto cleanup;
+    }
+  #endif
   SDL_GetRendererOutputSize(renderer, &cam.w, &cam.h);
   camera_reset(&cam);
   if (hud_init(&hud, "fonts/DejaVuSansMono.ttf", 16) == -1) {
@@ -186,6 +191,9 @@ int main(int argc, char *argv[]) {
         double elapsed = (double) (SDL_GetPerformanceCounter() - start) / (double) freq;
         if (elapsed > 0.05) break;
       }
+      #if TRAILS_ENABLED
+        trails_record(&trails, bs);
+      #endif
       app.sim_time += completed_steps * SIM_DT;
     }
 
@@ -198,7 +206,7 @@ int main(int argc, char *argv[]) {
 
     camera_update(&cam, frame_dt);
     hud_update(&hud, renderer, &app, frame_dt);
-    render_simulation(renderer, &render_assets, bs, colours, n, &cam);
+    render_simulation(renderer, &render_assets, bs, colours, n, &cam, &trails);
     hud_draw(&hud, renderer);
     SDL_RenderPresent(renderer);
   }
@@ -208,6 +216,7 @@ int main(int argc, char *argv[]) {
   cleanup:
     hud_free(&hud);
     render_free(&render_assets);
+    trails_free(&trails);
     if (renderer) SDL_DestroyRenderer(renderer);
     if (win) SDL_DestroyWindow(win);
     if (sdl_ready) SDL_Quit();

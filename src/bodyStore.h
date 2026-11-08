@@ -8,8 +8,6 @@
 
 #include "stdint.h"
 
-#define TRAIL_SIZE 0
-
 /**
  * @enum BodyType
  * @brief Classification types for celestial bodies in the simulation.

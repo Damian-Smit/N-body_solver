@@ -10,7 +10,7 @@
 
 #include "bodyStore.h"
 #include "render.h"
-
+#include "constants.h"
 /**
 * @brief Procedurally generates circular discs or soft glow textures for
 * rendering
@@ -87,10 +87,14 @@ int render_init(RenderAssets *ra, SDL_Renderer *renderer) {
 * @brief Renders all bodies, star glows and asteroid points into the viewport
 */
 void render_simulation(SDL_Renderer *renderer, RenderAssets *ra, BodyStore *bs, 
-                      int colours[][3], int n, Camera *cam) {
+                      int colours[][3], int n, Camera *cam, Trails *trail) {
 
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // black background
   SDL_RenderClear(renderer);
+
+  #if TRAILS_ENABLED
+    trails_draw(trail, renderer, colours, cam);
+  #endif
 
   float MIN_PX[4] = {6.0f, 2.5f, 1.5f, 1.0f};//min size star, planet, moon, asteroid
 

@@ -19,8 +19,11 @@
 
 #define SOFTENING 1e-6  /**< Gravitational force softening parameter to prevent division by 0*/
 
-#define TRAIL_SIZE 0      /**< Size of body trail history buffer */
+#define TRAIL_SIZE 512     /**< Size of body trail history buffer */
+
+#ifndef TRAILS_ENABLED
 #define TRAILS_ENABLED 0  /**< Flag for enabling trails */
+#endif
 
 /* AU conversion constants*/
 #define SOLAR_MASS_KG 1.989e30  /**< Mass of the Sun in kilograms */
