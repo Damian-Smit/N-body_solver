@@ -1,3 +1,8 @@
+/**
+* @file setup.c
+* @brief Implementation of environment setup, memory allocation, configuration
+* parser and procedural asteroid generation
+*/
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_video.h>
 #include <stdio.h>
@@ -11,6 +16,13 @@
 #include "constants.h"
 #include "setup.h"
 
+/**
+ * @brief Counts the total amount of bodies and stars in the input configuration
+ * file
+ * @param inputFile Path to the configuration file
+ * @param n Pointer to store the total count of bodies
+ * @param n_stars Pointer to store th total count of stars
+ */
 void count_bodies(char *inputFile, int *n, int *n_stars) {
 
   FILE *fptr = fopen(inputFile, "r");
@@ -42,10 +54,20 @@ void count_bodies(char *inputFile, int *n, int *n_stars) {
   fclose(fptr);
 }
 
+/**
+* @brief Calculates 64-byte aligned buffer size for vectorization support
+* @param n Number of elements
+* @return Aligned size in bytes
+*/
 size_t aligned_size(int n) {
   return (size_t) (((n+15) / 16) * 16) * sizeof(float);    
 }
 
+/**
+* @brief Allocates and initialises a BodyStore with cache-algined memory buffers
+* @param n Number of bodies
+* @return Pointer to initialised BodyStore
+*/
 BodyStore* init_bodystore(int n) {
   BodyStore *bs = malloc(sizeof(BodyStore));
   size_t sz = aligned_size(n);
@@ -77,6 +99,10 @@ BodyStore* init_bodystore(int n) {
   return bs;
 }
 
+/**
+* @brief Frees memory allocated for a BodyStore struct
+* @param bs Pointer to BodyStore
+*/
 void bodystore_free(BodyStore *bs) {
   if (!bs) return;
   free(bs->x);  free(bs->y);  free(bs->z);
@@ -89,6 +115,12 @@ void bodystore_free(BodyStore *bs) {
   free(bs);
 }
 
+/**
+ * @brief Allocates and initialses a StellarStore structure for tracking stellar
+ * evolution
+ * @param n_stars Number of stars to allocate for
+ * @return Pointer to the allocated StellarStore
+ */
 StellarStore* init_stellarstore(int n_stars) {
   StellarStore *ss = malloc(sizeof(StellarStore));
   size_t sz = aligned_size(n_stars);
@@ -119,6 +151,10 @@ StellarStore* init_stellarstore(int n_stars) {
   return ss;
 }
 
+/**
+* @brief Frees memory allocated for a StellarStore structure
+* @param ss Pointer to StellarStore
+*/
 void stellarstore_free(StellarStore *ss) {
   if (!ss) return;
   free(ss->initial_mass);
@@ -139,6 +175,9 @@ void stellarstore_free(StellarStore *ss) {
 * init_star */
 //}
 
+/**
+* @brief Initialises a single body parameters in the BodyStore
+*/
 void init_body(BodyStore *bs, float x, float y, float z, float cx, float cy, float cz, float vx, float vy, float vz,
     float ax, float ay, float az, float mass, float radius, uint8_t type, int i) {
 
@@ -159,6 +198,9 @@ void init_body(BodyStore *bs, float x, float y, float z, float cx, float cy, flo
   bs->type[i] = type;
 }
 
+/**
+* @brief Initialises a star entry in the StellarStore
+*/
 void init_star(StellarStore *ss, float initial_mass, float radius, int bs_index, int ss_i) {
   
   ss->initial_mass[ss_i] = initial_mass;
@@ -174,6 +216,9 @@ void init_star(StellarStore *ss, float initial_mass, float radius, int bs_index,
   ss->bodystore_index[ss_i] = bs_index;
 }
 
+/**
+* @brief Procedurally generate an asteroid
+*/
 void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius, double max_radius, double rad_min_km, double rad_max_km) {
 
   double r = min_radius + ((double)rand() / RAND_MAX) * (max_radius - min_radius);
@@ -197,8 +242,9 @@ void generate_asteroid(BodyStore *bs, int central_idx, int i, double min_radius,
   init_body(bs, x, y, z, 0, 0, 0, vx, vy, vz, 0, 0, 0, mass, radius, BODY_ASTEROID, i);
 }
 
-/*Pick asteroid type for generated asteroid and calculate weight accordingly,
- * converted to AU*/
+/**
+* @brief Calculates randomized asteroid properties based on 3 asteroid types
+*/
 void calculate_asteroid_properties(float *mass_out, float *radius_out, double min_km, double max_km) {
   /*1. C-type (Carbonaceous): density range of 1380 - 1800 kg/m^3
   * 2. S-type (Stony):  density range of 2000-3000 kg/m^3
@@ -232,6 +278,9 @@ void calculate_asteroid_properties(float *mass_out, float *radius_out, double mi
   *radius_out = (float) (radius_m / AU_IN_METRES);
 }
 
+/**
+* @brief Loads simulation environment configuration from file
+*/
 int setupEnvironment(BodyStore *bs, StellarStore *ss, int colours[][3], char *inputFile) {
 
   FILE *fptr = fopen(inputFile, "r");

@@ -1,3 +1,8 @@
+/**
+* @file linearBH.c
+* @brief Implementation of the Linear Barnes-Hut octree algortihm using Morton
+* Z-order curves
+*/
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <math.h>
@@ -7,22 +12,35 @@
 
 #define MIN_HALF_WIDTH 1e-9
 
+/**
+* @struct Bound
+* @brief Spatial boundary constraints for the simulation space
+*/
 typedef struct {
   float centre_x, centre_y, centre_z;
   float min_x, min_y, min_z;
   double half_width;
 } Bound;
 
+/**
+* @struct COMResult
+* @brief Centre of mass calculation helper
+*/
 typedef struct {
   float cx, cy, cz;
   float mass;
 } COMResult;
 
+/**
+* @struct StackEntry
+* @brief Stack grame entry used during iterative tree traversal
+*/
 typedef struct {
   int idx;
   int is_leaf;
 } StackEntry;
 
+//helpers
 static Bound        calculate_bounds(BodyStore *bs, int n);
 static uint64_t     calculate_spread(uint64_t cord);
 static int          compare(const void *a, const void *b, void *context);
@@ -31,6 +49,9 @@ static void         build_recursive(LinearBHTree *tree, int first, int last, int
 static void         build_internal_nodes(LinearBHTree *tree, int n, float initial_half_width);
 static COMResult    compute_com(LinearBHTree *tree, BodyStore *bs, int child, int is_leaf);
 
+/**
+* @brief Initialises and allocates the resources for the Barnes-Hut tree
+*/
 LinearBHTree *linearbh_init(int n) {
   LinearBHTree *tree = malloc(sizeof(LinearBHTree));
 
@@ -45,6 +66,10 @@ LinearBHTree *linearbh_init(int n) {
   return tree;
 }
 
+/**
+* @brief Builds the spatial tree by calculating bounding boxes, morton codes,
+* sorting and then computing centres of mass
+*/
 void linearbh_build(LinearBHTree *tree, BodyStore *bs, int n) {
 
   if (n <= 1) return;
@@ -53,6 +78,7 @@ void linearbh_build(LinearBHTree *tree, BodyStore *bs, int n) {
   Bound bound = calculate_bounds(bs, n);
   float scale = ((1u << 21) - 1) / (2 * bound.half_width);
 
+  //morton encoding
   for (int i = 0; i < n; i++) {
     ix = (uint32_t) ((bs->x[i] - bound.min_x) * scale);
     iy = (uint32_t) ((bs->y[i] - bound.min_y) * scale);
@@ -70,12 +96,18 @@ void linearbh_build(LinearBHTree *tree, BodyStore *bs, int n) {
 
 }
 
+/**
+* @brief Initiates recursive internal node construction
+*/
 static void build_internal_nodes(LinearBHTree *tree, int n, float initial_half_width) {
-
   int node_count = 1;
   build_recursive(tree, 0, n - 1, 0, &node_count, initial_half_width);
 }
 
+/**
+* @brief Find the optimal split point in sorted Morton codes using binary search
+* logic
+*/
 int find_split(uint64_t *morton_codes, int *sorted_indices, int first, int last) {
   
   if (morton_codes[sorted_indices[first]] == morton_codes[sorted_indices[last]]) return (first + last) >> 1;
@@ -101,6 +133,9 @@ int find_split(uint64_t *morton_codes, int *sorted_indices, int first, int last)
   return split_point;
 }
 
+/**
+* @brief Recursively build binary tree nodes and computes cell widths
+*/
 static void build_recursive(LinearBHTree *tree, int first, int last, int node_idx, int *node_count, float initial_half_width) {
 
   TreeNode *node = &tree->nodes[node_idx];
@@ -141,6 +176,9 @@ static void build_recursive(LinearBHTree *tree, int first, int last, int node_id
 
 }
 
+/**
+* @brief Bit-spread helper function for calculating Morton codes
+*/
 static uint64_t calculate_spread(uint64_t cord) {
 
   cord &= 0x1fffff;
@@ -153,6 +191,9 @@ static uint64_t calculate_spread(uint64_t cord) {
   return cord;
 }
 
+/**
+* @brief Comparison function for qsort_r sorting of Morton codes
+*/
 static int compare(const void *a, const void *b, void *context) {
   uint64_t *codes = (uint64_t *) context;
   uint64_t ca = codes[*(const int *)a];
@@ -162,6 +203,9 @@ static int compare(const void *a, const void *b, void *context) {
   return 0;
 }
 
+/**
+* @brief Recursively computes centres of mass and total mass for tree nodes
+*/
 static COMResult compute_com(LinearBHTree *tree, BodyStore *bs, int child, int is_leaf) {
   COMResult result;
 
@@ -191,6 +235,10 @@ static COMResult compute_com(LinearBHTree *tree, BodyStore *bs, int child, int i
   return result;
 }
 
+/**
+* @brief Computes gravitational acceleration vectors using the Barnes Hut
+* criterion
+*/
 void linearbh_compute_acceleration(LinearBHTree *tree, BodyStore *bs, int n,
     float theta, float softening) {
 
@@ -221,11 +269,11 @@ void linearbh_compute_acceleration(LinearBHTree *tree, BodyStore *bs, int n,
         float dist_sq = dx * dx + dy * dy + dz * dz + softening*softening;
         float dist = sqrt(dist_sq);
         float a_mag = G * bs->mass[body] / (dist_sq * dist);
-        acc_x += a_mag *dx;
+        acc_x += a_mag * dx;
         acc_y += a_mag * dy;
         acc_z += a_mag * dz;
       } else {
-        /*internal node, check banres hut criterion*/
+        /*internal node, check Barnes-Hut criterion*/
         TreeNode *node = &tree->nodes[idx];
 
         float dx = node->centre_x - bx;
@@ -242,7 +290,7 @@ void linearbh_compute_acceleration(LinearBHTree *tree, BodyStore *bs, int n,
           acc_y += a_mag * dy;
           acc_z += a_mag * dz;
         } else {
-          /*too close, pust children, right first so left is popped first*/
+          /*too close, push children, right first so left is popped first*/
           stack[top].idx = node->right_child;
           stack[top].is_leaf = node->right_is_leaf;
           top++;
@@ -261,6 +309,9 @@ void linearbh_compute_acceleration(LinearBHTree *tree, BodyStore *bs, int n,
 
 }
 
+/**
+* @brief Calculates bounding box dimensions and centre points for all bodies
+*/
 static Bound calculate_bounds(BodyStore *bs, int n) {
   Bound bound;
   double half_width = 0;
@@ -319,7 +370,9 @@ static Bound calculate_bounds(BodyStore *bs, int n) {
   return bound;
 }
 
-
+/**
+* @brief Frees all memory allocated for the LinearBHTree
+*/
 void linearbh_free(LinearBHTree *tree) {
   free(tree->morton_codes);
   free(tree->sorted_indices);

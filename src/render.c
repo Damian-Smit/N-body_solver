@@ -1,3 +1,8 @@
+/**
+* @file render.c
+* @brief Implementation of texture generation, stellar glow and simulation frame
+* rendering
+*/
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_video.h>
 #include <math.h>
@@ -6,12 +11,21 @@
 #include "bodyStore.h"
 #include "render.h"
 
+/**
+* @brief Procedurally generates circular discs or soft glow textures for
+* rendering
+* @param renderer Pointer to SDL renderer
+* @param size Texture width and height in pixels
+* @param is_glow Flag indicating whther to generate radial glow (1) or solid
+* discs (0)
+* @return Pointer to generated SDL_Texture
+*/
 static SDL_Texture *make_texture(SDL_Renderer *renderer, int size, int is_glow) {
   uint32_t *pixels = malloc((size_t) size * size * sizeof(uint32_t));
   if (!pixels) return NULL;
 
   float centre = (size - 1) / 2.0f;
-  float radius = size / 2.0f;// - 1.0f; //1px margin
+  float radius = size / 2.0f - 1.0f; //1px margin
   
 
   for (int y = 0; y < size; y++) {
@@ -54,6 +68,9 @@ static SDL_Texture *make_texture(SDL_Renderer *renderer, int size, int is_glow) 
   return texture;
 }
 
+/**
+* @brief Initialises render assets (disc and glow textures)
+*/
 int render_init(RenderAssets *ra, SDL_Renderer *renderer) {
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1"); //1 == linear
   ra->disc = make_texture(renderer, 64, 0);
@@ -66,6 +83,9 @@ int render_init(RenderAssets *ra, SDL_Renderer *renderer) {
   return 0;
 }
 
+/**
+* @brief Renders all bodies, star glows and asteroid points into the viewport
+*/
 void render_simulation(SDL_Renderer *renderer, RenderAssets *ra, BodyStore *bs, 
                       int colours[][3], int n, Camera *cam) {
 
@@ -92,7 +112,7 @@ void render_simulation(SDL_Renderer *renderer, RenderAssets *ra, BodyStore *bs,
       total_px = glow_px;
     }
 
-    //Only draw what is on screen
+    //Culling (skip rendering bodies outside view)
     if (body_x < -total_px || body_x > cam->w + total_px || body_y < -total_px || body_y > cam->h + total_px) continue;
 
     if (bs->type[i] == BODY_ASTEROID) {
@@ -120,6 +140,9 @@ void render_simulation(SDL_Renderer *renderer, RenderAssets *ra, BodyStore *bs,
 
 }
 
+/**
+* @brief Frees textures owned by RenderAssets
+*/
 void render_free(RenderAssets *ra) {
   if (ra->disc) {
     SDL_DestroyTexture(ra->disc);

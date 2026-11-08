@@ -1,3 +1,8 @@
+/**
+* @file gravitySimulator.c
+* @brief Main simulation loop, Velocity Verlet numerical integration and
+* initialisation runner
+*/
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_video.h>
 #include <stdio.h>
@@ -19,19 +24,29 @@
 /*physics steps*/
 static inline void kahan_add(float *val, float *comp, float delta);
 void integration_step1(BodyStore *bs, float dt);
-//void compute_acceleration(Body *bodies, int n, double softening)
 void integration_step2(BodyStore *bs, float dt);
 
 
+/**
+* @brief Performs Kahan summation addition to reduce numerical precision loss in
+* floating point updates
+* @param val Pointer to the primary accumulated value
+* @param comp Pointer to the compensation term tracking lost lower-bits
+* @param delta The value to add
+*/
 static inline void kahan_add(float *val, float *comp, float delta) {
   float y = delta - *comp;
   float t = *val + y;
   *comp = (t - *val) - y;
   *val = t;
 }
-/*Velocity Verlet Integrator*/
-/*step 1 - Update position and half update velocity*/
-/*step 2 - Complete velocity update after acceleration is recalculated*/
+
+/**
+* @brief Velocity Verlet Integrator Step 1: updates positions and performs
+* half-step velocity update
+* @param bs Pointer to the BodyStore containing body states
+* @param dt Time step size
+*/
 void integration_step1(BodyStore *bs, float dt){
   
   for (int i = 0; i < bs->n; i++) {
@@ -53,6 +68,12 @@ void integration_step1(BodyStore *bs, float dt){
 
 }
 
+/**
+* @brief Velocty Verlet Integrator Step2 : Completes veloctiy updates using
+* newly computed accelerations
+* @param bs Pointer to the BodyStore containing body states
+* @param dt Time step size
+*/
 void integration_step2(BodyStore *bs, float dt) {
 
   for (int i = 0; i < bs->n; i++) {
@@ -63,6 +84,12 @@ void integration_step2(BodyStore *bs, float dt) {
   }
 }
 
+/**
+* @brief Main entry point for the gravitational N-body simulation application
+* @param argc Argument count
+* @param argv Argument vector (expects input configuration file path)
+* @return Exit status code (0 on success, 1 on failure)
+*/
 int main(int argc, char *argv[]) {
   int n = 0, n_stars = 0;
   int sdl_ready = 0;
@@ -131,6 +158,8 @@ int main(int argc, char *argv[]) {
 
   freq = SDL_GetPerformanceFrequency();
   last = SDL_GetPerformanceCounter();
+
+  /* Main execution loop*/
   while (app.running) {
 
     Uint64 now = SDL_GetPerformanceCounter();

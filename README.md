@@ -1,4 +1,4 @@
-# Gavity Simulator
+# Gravity Simulator
 
 An N-body gravity simulator written in C, rendered in real time with SDL2.
 Forces are approximated with a Barnes-Hut algorithm, using a linear BH tree
@@ -64,7 +64,6 @@ make run FILE=setups/mock_galaxy_1000.txt
 ├── Makefile
 ├── src/
 │   ├── gravitySimulator.c   # Entry point and main loop
-│   ├── vec.c / vec.h        # 3D vector math
 │   ├── linearBH.c / .h      # flat Barnes-Hut tree (Morton-code sort based)
 │   ├── hud.c / .h           # display of simulation metrics
 │   ├── render.c / .h        # rendering of bodies
@@ -74,6 +73,7 @@ make run FILE=setups/mock_galaxy_1000.txt
 │   ├── bodyStore.h          # struct-of-arrays body/star data layout
 │   ├── constants.h          # defined physics constants used throughout
 │   └── legacy/
+|       ├── vec.c / vec.h    # 3D vector math (legacy, require for octree.c)
 │       └── octree.c / .h    # earlier pointer-based octree implementation,
 │                             # kept for reference; not part of the current build
 └─── setups/                  # input scenes (see format below)

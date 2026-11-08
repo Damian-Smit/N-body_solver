@@ -1,3 +1,7 @@
+/**
+* @file input.c
+* @brief Implementation of mouse and keyboard control inputs 
+*/
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_keycode.h>
@@ -8,6 +12,15 @@
 #define PAN_SPEED 700 //pixel per second
 #define ZOOM_RATE 4 //zoom muliplier per second while held
 
+/**
+* @brief Coverts window mouse coordinates to scaled viewport/world coordinates
+* @param win Pointer to the SDL window
+* @param cam Pointer to the camera struct
+* @param mx Raw mouse x coordinate
+* @param my raw mouse y coordinate
+* @param px Pointer to store the covereted X coordinate
+* @param py Pointer to store the converted Y coordinate
+*/
 static void mouse_cords(SDL_Window *win, Camera *cam, double mx, double my, 
                         double *px, double *py) {
 
@@ -17,7 +30,13 @@ static void mouse_cords(SDL_Window *win, Camera *cam, double mx, double my,
   *py = my * (double) cam->h / window_height;
 }
 
-//return index of next follow, -1 then none to follow
+/**
+* @brief Finds the index of the next celestial body to follow (skips asteroids)
+* @param bs Pointer to the BodyStore
+* @param current Current follow target index
+* @param direction Traversal Direction (+1 or -1)
+* @return Index of the next body or -1 if none
+*/
 static int next_follow(BodyStore *bs, int current, int direction) {
   int i = 0;
   if (current < 0 && direction < 0) {
@@ -44,16 +63,10 @@ static int next_follow(BodyStore *bs, int current, int direction) {
   
 }
 
-//Space bar = pause/unpause
-//f, f11 = fullscreen
-//esc = out of fullscreen, again then close
-//q = close
-//[ = halve substeps
-//] = double substeps
-//arrows / wasd = left/right/up/down
-//plus = zoom in
-//minus = zoom out
-//r = reset camera
+/**
+* @brief Processes discrete SDL events such as keyboard clicks and window
+* resizing 
+*/
 void event_handler(App *app, Camera *cam, SDL_Window *win, 
                   SDL_Renderer *renderer, BodyStore *bs) {
   SDL_Event e;  
@@ -138,6 +151,9 @@ void event_handler(App *app, Camera *cam, SDL_Window *win,
   }
 }
 
+/**
+* @brief Processes continuous keybaord state for smooth camera panning/zooming
+*/
 void held_input_handler(App *app, Camera *cam, double frame_dt) {
 
   const Uint8 *keys = SDL_GetKeyboardState(NULL);

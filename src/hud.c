@@ -1,9 +1,20 @@
+/**
+* @file hud.c
+* @brief HUD implementation for rendering simulation diagnostics
+*/
 #include <stdio.h>
 #include "hud.h"
 
 #define HUD_PADDING 10
 #define HUD_MARGIN 10
 
+/**
+* @brief Initializes the HUD font rendering context and timers
+* @param hud Pointer to the Hud structure
+* @param font_path Path to the TrueType font file
+* @param pt_size Font point size
+* @return 0 on success, -1 on failure
+*/
 int hud_init(Hud *hud, char *font_path, int pt_size) {
 
   if (TTF_Init() != 0) {
@@ -24,6 +35,13 @@ int hud_init(Hud *hud, char *font_path, int pt_size) {
   return 0;
 }
 
+/**
+* @brief Renders a specific text line into an SDL texture for the HUD
+* @param hud Pointer to the Hud structure
+* @param r Pointer to the SDL renderer
+* @param i Line index
+* @param text Text string to render
+*/
 static void set_line(Hud *hud, SDL_Renderer *r, int i, char *text) {
   SDL_Color white = {255, 255, 255, 255};
   
@@ -40,6 +58,13 @@ static void set_line(Hud *hud, SDL_Renderer *r, int i, char *text) {
   SDL_FreeSurface(surf);
 }
 
+/**
+* @brief Updates HUD stats
+* @param hud Pointer to the Hud structure
+* @param r Pointer to the SDL renderer
+* @param app Pointer to the application state
+* @param frame_dt Frame delta time in seconds
+*/
 void hud_update(Hud *hud, SDL_Renderer *r, App *app, double frame_dt) {
   hud->timer += frame_dt;
   hud->frames++;
@@ -71,7 +96,7 @@ void hud_update(Hud *hud, SDL_Renderer *r, App *app, double frame_dt) {
   }
   set_line(hud, r, 4, text);
   
-  //box sizing
+  //box dimensions
   int max_w = 0;
   int total_h = 0;
   for (int i = 0; i < HUD_LINES; i++) {
@@ -84,6 +109,11 @@ void hud_update(Hud *hud, SDL_Renderer *r, App *app, double frame_dt) {
   hud->hud_h = total_h + 2 * HUD_PADDING;
 }
 
+/**
+* @brief Draws the HUD background box and text textures onto renderer
+* @param hud Pointer to the Hud struct
+* @param r Pointer to the SDL renderer
+*/
 void hud_draw(Hud *hud, SDL_Renderer *r) {
   if (hud->hud_w == 0) return;
 
@@ -103,6 +133,10 @@ void hud_draw(Hud *hud, SDL_Renderer *r) {
   SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 }
 
+/**
+* @brief Frees all the allocated HUD textures, fonts and resources
+* @param hud Pointer to the Hud struct
+*/
 void hud_free(Hud *hud) {
   if (!hud) return;
 
