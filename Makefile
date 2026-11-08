@@ -8,8 +8,6 @@ OBJ     = $(SRC:.c=.o)
 DEPS    = $(OBJ:.o=.d)
  
 FILE ?= setups/solar_system.txt
-#FILE = setups/mock_galaxy_1000.txt
-#FILE = setups/mock_galaxy_3000.txt
 
 all: $(TARGET)
  
