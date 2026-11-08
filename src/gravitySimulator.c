@@ -80,6 +80,7 @@ int main(int argc, char *argv[]) {
   App app = { .running = 1, .substeps = 50, .follow = -1};
   Camera cam = {0};
   Hud hud = {0};
+  RenderAssets render_assets = {0};
 
   if (argc < 2) {
     fprintf(stderr, "incorrect arg count %d\n", argc);
@@ -124,6 +125,9 @@ int main(int argc, char *argv[]) {
   if (hud_init(&hud, "fonts/DejaVuSansMono.ttf", 16) == -1) {
     goto cleanup;
   }
+  if (render_init(&render_assets, renderer) == -1) {
+    goto cleanup;
+  }
 
   freq = SDL_GetPerformanceFrequency();
   last = SDL_GetPerformanceCounter();
@@ -165,7 +169,7 @@ int main(int argc, char *argv[]) {
 
     camera_update(&cam, frame_dt);
     hud_update(&hud, renderer, &app, frame_dt);
-    render_simulation(renderer, bs, colours, n, &cam);
+    render_simulation(renderer, &render_assets, bs, colours, n, &cam);
     hud_draw(&hud, renderer);
     SDL_RenderPresent(renderer);
   }
@@ -174,6 +178,7 @@ int main(int argc, char *argv[]) {
 
   cleanup:
     hud_free(&hud);
+    render_free(&render_assets);
     if (renderer) SDL_DestroyRenderer(renderer);
     if (win) SDL_DestroyWindow(win);
     if (sdl_ready) SDL_Quit();

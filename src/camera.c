@@ -26,7 +26,7 @@ void camera_zoom_at(Camera *c, double factor, double px, double py) {
 
   float new_zoom = c->tzoom * factor;
   if (new_zoom < ZOOM_MIN) new_zoom = ZOOM_MIN;
-  if (new_zoom > ZOOM_MAX) new_zoom = ZOOM_MAX;
+//  if (new_zoom > ZOOM_MAX) new_zoom = ZOOM_MAX;
 
   c->tzoom = new_zoom;
   c->tx = wx - (px - c->w / 2.0) / new_zoom;

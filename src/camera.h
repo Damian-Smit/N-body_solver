@@ -2,7 +2,7 @@
 #define camera_H
 
 #define ZOOM_MIN 0.05 //pixels per AU
-#define ZOOM_MAX 1e7
+//#define ZOOM_MAX 1e20
 #define ZOOM_START 10
 
 typedef struct {

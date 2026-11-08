@@ -77,4 +77,5 @@ m 21.205025 20.933051 -0.919217   -0.007555 2.215663 0.001772   0 0 0   2.212757
 
 //asteroids
 //type(a) amount central_body_idx min_dist(AU) max_dist(AU) min_radius(km) max_radius(km) colours(r g b)
-a 800 0 2.2 3.2 1 470 150 150 150
+a 200 0 2.2 3.2 1 470 150 150 150
+a 300 0 35 50 1 1000 150 150 150
