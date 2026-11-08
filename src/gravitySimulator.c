@@ -128,6 +128,10 @@ int main(int argc, char *argv[]) {
 
   if (setupEnvironment(bs, ss, colours, argv[1]) != 1) goto cleanup;
 
+  //set initial acceleration
+  linearbh_build(tree, bs, n);
+  linearbh_compute_acceleration(tree, bs, n, THETA, SOFTENING);
+
   if (SDL_Init(SDL_INIT_VIDEO) != 0) {
     printf("SDL_Init Error: %s\n", SDL_GetError());
     goto cleanup;

@@ -5,7 +5,7 @@
 #ifndef constants_H
 #define constants_H
 
-#define SIM_DT 1e-4f  /**< Simulate time step size in years per substep*/
+#define SIM_DT 2.5e-5f //1e-4f  /**< Simulate time step size in years per substep*/
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846 /**< Math constant Pi*/

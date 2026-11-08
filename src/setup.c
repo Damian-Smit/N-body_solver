@@ -166,7 +166,7 @@ void stellarstore_free(StellarStore *ss) {
   free(ss->radius);
   free(ss->phase); 
   free(ss->bodystore_index);
-
+  free(ss);
 }
 
 //EvolutionTable init_evotable(EvolutionTable *evo_table) {
