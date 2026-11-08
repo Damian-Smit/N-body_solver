@@ -14,6 +14,7 @@
 #include "input.h"
 #include "setup.h"
 #include "camera.h"
+#include "hud.h"
 
 /*physics steps*/
 static inline void kahan_add(float *val, float *comp, float delta);
@@ -78,6 +79,7 @@ int main(int argc, char *argv[]) {
   
   App app = { .running = 1, .substeps = 50, .follow = -1};
   Camera cam = {0};
+  Hud hud = {0};
 
   if (argc < 2) {
     fprintf(stderr, "incorrect arg count %d\n", argc);
@@ -119,6 +121,9 @@ int main(int argc, char *argv[]) {
 
   SDL_GetRendererOutputSize(renderer, &cam.w, &cam.h);
   camera_reset(&cam);
+  if (hud_init(&hud, "fonts/DejaVuSansMono.ttf", 16) == -1) {
+    goto cleanup;
+  }
 
   freq = SDL_GetPerformanceFrequency();
   last = SDL_GetPerformanceCounter();
@@ -159,12 +164,16 @@ int main(int argc, char *argv[]) {
     }
 
     camera_update(&cam, frame_dt);
+    hud_update(&hud, renderer, &app, frame_dt);
     render_simulation(renderer, bs, colours, n, &cam);
+    hud_draw(&hud, renderer);
+    SDL_RenderPresent(renderer);
   }
   
   exit_code = 0;
 
   cleanup:
+    hud_free(&hud);
     if (renderer) SDL_DestroyRenderer(renderer);
     if (win) SDL_DestroyWindow(win);
     if (sdl_ready) SDL_Quit();
@@ -172,5 +181,6 @@ int main(int argc, char *argv[]) {
     free(colours);
     bodystore_free(bs);
     stellarstore_free(ss);
+
   return exit_code;
 }

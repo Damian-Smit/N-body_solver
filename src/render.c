@@ -48,5 +48,5 @@ void render_simulation(SDL_Renderer *renderer, BodyStore *bs,
     }
   }
 
-  SDL_RenderPresent(renderer);
+  //SDL_RenderPresent(renderer);
 }
