@@ -37,7 +37,7 @@ make
 ```bash
 make run                             #defaults to setups/solar_system.txt and trails off
 make run FILE=setups/mock_galaxy_1000.txt       #to run a specific setup file
-make run TRAILS=true                       #to turn trails on for planets
+make clean && make run TRAILS=true                       #to turn trails on for planets 
 ./gravitySimulator mock_galaxy_1000.txt
 ```
 
